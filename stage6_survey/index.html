@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stage 6: Manual Radio Survey &amp; Localization</title>
+  <link rel="stylesheet" href="css/survey.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="survey-body">
+
+  <!-- TOP HEADER -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo-group">
+        <span class="logo-icon">📡</span>
+        <div>
+          <div class="title-row">
+            <h1 class="app-title">STAGE 6: RADIO SURVEY MODULE</h1>
+            <span class="badge-stage">MANUAL LOCALIZATION</span>
+          </div>
+          <p class="app-subtitle">Physical RF Mapping &bull; 120×80 cm Arena &bull; Ground Truth Logging</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="header-center">
+      <div class="status-indicator-box">
+        <span class="indicator-label">BATCH STATUS</span>
+        <div id="batch-status-badge" class="status-badge status-idle">
+          <span class="status-dot"></span> <span id="batch-status-text">IDLE / WAITING</span>
+        </div>
+      </div>
+      <div class="position-chip">
+        <span class="chip-label">POSITION METHOD</span>
+        <span id="pos-method-chip" class="chip-value">UNKNOWN</span>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div class="source-tag-group">
+        <span class="source-label">DATA SOURCE:</span>
+        <span id="header-data-source" class="badge-live">LIVE</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- NOTIFICATION BANNER -->
+  <div id="notification-banner" class="alert-banner hidden">
+    <span id="notif-icon" class="banner-icon">ℹ️</span>
+    <span id="notif-message" class="banner-text">Ready.</span>
+    <button id="btn-close-notif" class="btn-banner-close">&times;</button>
+  </div>
+
+  <main class="survey-main">
+
+    <!-- LEFT COLUMN: ARENA GRID & CELL SELECTION -->
+    <section class="card grid-panel">
+      <div class="card-header">
+        <div class="card-title-group">
+          <h2 class="card-title">🏟️ Arena Grid (A1 – F4)</h2>
+          <span class="card-badge">6 Cols × 4 Rows &bull; 20 cm Cells &bull; 120×80 cm</span>
+        </div>
+        <div class="grid-legend-compact">
+          <span class="legend-dot dot-unmeasured"></span> Unmeasured
+          <span class="legend-dot dot-measured"></span> Measured
+          <span class="legend-dot dot-selected"></span> Selected
+          <span class="legend-dot dot-confirmed"></span> Confirmed
+          <span class="legend-dot dot-obstacle"></span> Obstacle
+        </div>
+      </div>
+
+      <!-- Grid Axis Rulers & Cells -->
+      <div class="grid-display-container">
+        <div class="grid-coordinate-ruler-x">
+          <span>Col A (0-20cm)</span>
+          <span>Col B (20-40cm)</span>
+          <span>Col C (40-60cm)</span>
+          <span>Col D (60-80cm)</span>
+          <span>Col E (80-100cm)</span>
+          <span>Col F (100-120cm)</span>
+        </div>
+
+        <div class="grid-content-with-y-axis">
+          <div class="grid-coordinate-ruler-y">
+            <span>Row 1 (0-20cm)</span>
+            <span>Row 2 (20-40cm)</span>
+            <span>Row 3 (40-60cm)</span>
+            <span>Row 4 (60-80cm)</span>
+          </div>
+          <div id="arena-grid-container" class="grid-board">
+            <!-- 24 cells rendered dynamically -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Grid Action Toolbar -->
+      <div class="grid-actions-toolbar">
+        <div class="cell-selection-readout">
+          <span class="label-dim">Selected:</span>
+          <strong id="readout-selected-cell" class="val-highlight">None</strong>
+          <span class="label-dim">&bull; Confirmed:</span>
+          <strong id="readout-confirmed-cell" class="val-confirmed">None (UNKNOWN)</strong>
+        </div>
+        <div class="cell-action-btns">
+          <button id="btn-confirm-position" class="btn-primary" disabled>
+            📍 Confirm Position at <span id="btn-confirm-target">...</span>
+          </button>
+        </div>
+      </div>
+      <div id="locked-cell-warning" class="locked-banner hidden">
+        ⚠️ Active batch is locked to cell <strong id="locked-cell-name">--</strong>. Selecting another cell will not alter the active batch.
+      </div>
+    </section>
+
+    <!-- RIGHT COLUMN: SURVEY BATCH CONTROLS & MANUAL ENTRY -->
+    <div class="survey-sidebar">
+
+      <!-- BATCH CONTROLS CARD -->
+      <section class="card batch-card">
+        <div class="card-header-compact">
+          <h3 class="card-title-sm">⚙️ Survey Batch Setup</h3>
+          <span id="batch-id-tag" class="card-tag">NO BATCH</span>
+        </div>
+
+        <div class="batch-form-grid">
+          <div class="input-group">
+            <label for="input-survey-id">Survey ID:</label>
+            <input type="text" id="input-survey-id" class="text-input" value="SURVEY_001" placeholder="e.g. SURVEY_001">
+          </div>
+
+          <div class="input-group">
+            <label>Obstacle Condition:</label>
+            <div class="radio-pill-group">
+              <label class="radio-pill active" id="label-cond-clean">
+                <input type="radio" name="obstacle_condition" value="NO_OBSTACLE" checked>
+                🟢 NO_OBSTACLE
+              </label>
+              <label class="radio-pill" id="label-cond-foil">
+                <input type="radio" name="obstacle_condition" value="FOIL_OBSTACLE">
+                🧱 FOIL_OBSTACLE
+              </label>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Data Source Tag:</label>
+            <div class="radio-pill-group">
+              <label class="radio-pill active" id="label-source-live">
+                <input type="radio" name="data_source" value="LIVE" checked>
+                🔴 LIVE
+              </label>
+              <label class="radio-pill" id="label-source-test">
+                <input type="radio" name="data_source" value="TEST_FIXTURE">
+                🧪 TEST_FIXTURE
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="batch-action-row">
+          <button id="btn-start-batch" class="btn-action-start" disabled>
+            ▶ Start Survey Batch
+          </button>
+          <button id="btn-stop-batch" class="btn-action-stop hidden">
+            ⏹ End Batch
+          </button>
+        </div>
+
+        <div id="active-batch-info-box" class="active-batch-box hidden">
+          <div class="batch-metric">
+            <span class="b-label">ACTIVE CELL</span>
+            <strong id="ab-cell" class="b-val text-cyan">A1</strong>
+          </div>
+          <div class="batch-metric">
+            <span class="b-label">CONDITION</span>
+            <strong id="ab-condition" class="b-val text-emerald">NO_OBSTACLE</strong>
+          </div>
+          <div class="batch-metric">
+            <span class="b-label">BATCH PACKETS</span>
+            <strong id="ab-packet-count" class="b-val text-violet">0</strong>
+          </div>
+          <div class="batch-metric">
+            <span class="b-label">BATCH ID</span>
+            <span id="ab-id" class="b-val-small">--</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- PASTE JSON PACKET CARD -->
+      <section class="card paste-card">
+        <div class="card-header-compact">
+          <h3 class="card-title-sm">📋 Quick Paste ESP32 JSON</h3>
+          <span class="card-tag tag-json">JSON PARSER</span>
+        </div>
+        <p class="section-desc">Paste raw output directly from the base ESP32 serial terminal:</p>
+        
+        <textarea id="raw-json-input" class="json-textarea" rows="2" placeholder='{"telemetry":[1184,0.0,0.0,0.00,0.00,0.00,0.00,0,0],"rssi":-103,"snr":1.50,"receivedCount":904}'></textarea>
+        
+        <div class="json-btn-row">
+          <button id="btn-parse-json" class="btn-secondary">🔍 Parse Packet JSON</button>
+          <button id="btn-sample-json" class="btn-ghost" title="Insert sample ESP32 packet">Sample</button>
+        </div>
+        <div id="json-parse-status" class="parse-status-box hidden"></div>
+      </section>
+
+      <!-- MANUAL PACKET ENTRY FORM -->
+      <section class="card entry-card">
+        <div class="card-header-compact">
+          <h3 class="card-title-sm">📝 Packet Entry Form</h3>
+          <span class="card-tag tag-entry">VERIFY &amp; SAVE</span>
+        </div>
+
+        <form id="packet-entry-form" onsubmit="return false;">
+          <div class="form-row-grid">
+            <div class="input-field">
+              <label for="f-seq">Sequence No: <span class="req">*</span></label>
+              <input type="number" id="f-seq" class="text-input" placeholder="e.g. 1184" min="0" required>
+            </div>
+            <div class="input-field">
+              <label for="f-rssi">RSSI (dBm): <span class="req">*</span></label>
+              <input type="number" id="f-rssi" class="text-input" placeholder="e.g. -103" step="0.5" required>
+            </div>
+            <div class="input-field">
+              <label for="f-snr">SNR (dB): <span class="req">*</span></label>
+              <input type="number" id="f-snr" class="text-input" placeholder="e.g. 1.50" step="0.1" required>
+            </div>
+          </div>
+
+          <!-- Optional Telemetry Toggle -->
+          <details class="optional-telemetry-details">
+            <summary class="details-summary">▶ Optional Wheel &amp; IMU Telemetry</summary>
+            <div class="opt-grid">
+              <div class="input-field-sm">
+                <label for="f-enc-left">Left Enc Rate:</label>
+                <input type="number" id="f-enc-left" class="text-input-sm" step="0.1" placeholder="0.0">
+              </div>
+              <div class="input-field-sm">
+                <label for="f-enc-right">Right Enc Rate:</label>
+                <input type="number" id="f-enc-right" class="text-input-sm" step="0.1" placeholder="0.0">
+              </div>
+              <div class="input-field-sm">
+                <label for="f-ax">ax (g):</label>
+                <input type="number" id="f-ax" class="text-input-sm" step="0.01" placeholder="0.00">
+              </div>
+              <div class="input-field-sm">
+                <label for="f-ay">ay (g):</label>
+                <input type="number" id="f-ay" class="text-input-sm" step="0.01" placeholder="0.00">
+              </div>
+              <div class="input-field-sm">
+                <label for="f-az">az (g):</label>
+                <input type="number" id="f-az" class="text-input-sm" step="0.01" placeholder="1.00">
+              </div>
+              <div class="input-field-sm">
+                <label for="f-gz">gz (deg/s):</label>
+                <input type="number" id="f-gz" class="text-input-sm" step="0.01" placeholder="0.00">
+              </div>
+              <div class="input-field-sm">
+                <label for="f-pwm-left">Left PWM:</label>
+                <input type="number" id="f-pwm-left" class="text-input-sm" placeholder="0" min="0" max="255">
+              </div>
+              <div class="input-field-sm">
+                <label for="f-pwm-right">Right PWM:</label>
+                <input type="number" id="f-pwm-right" class="text-input-sm" placeholder="0" min="0" max="255">
+              </div>
+            </div>
+          </details>
+
+          <div class="form-action-row">
+            <button type="submit" id="btn-save-packet" class="btn-save-packet" disabled>
+              💾 Save Packet to Active Batch
+            </button>
+            <button type="button" id="btn-clear-form" class="btn-ghost">Clear</button>
+          </div>
+        </form>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- BOTTOM FULL-WIDTH: LIVE DATA TABLE & CELL SUMMARIES -->
+  <footer class="survey-footer">
+    <div class="footer-tabs">
+      <button id="tab-packets" class="footer-tab-btn active">📊 Live Recorded Packets (<span id="total-packet-count">0</span>)</button>
+      <button id="tab-summary" class="footer-tab-btn">🗺️ Grid Cell RF Summary (<span id="measured-cell-count">0/22</span>)</button>
+      <div class="footer-actions">
+        <a id="btn-export-csv" href="/api/export_csv" class="btn-export" download="survey_records.csv">
+          📥 Export CSV (21 Columns)
+        </a>
+      </div>
+    </div>
+
+    <!-- PANEL 1: RECORDED PACKETS TABLE -->
+    <div id="panel-packets" class="footer-panel">
+      <div class="table-scroll-container">
+        <table class="survey-table">
+          <thead>
+            <tr>
+              <th>Seq #</th>
+              <th>Cell</th>
+              <th>Condition</th>
+              <th>Source</th>
+              <th>RSSI (dBm)</th>
+              <th>SNR (dB)</th>
+              <th>Encoders (L/R)</th>
+              <th>IMU (ax,ay,az)</th>
+              <th>PWM (L/R)</th>
+              <th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody id="packets-tbody">
+            <tr class="empty-row"><td colspan="10">No packets recorded yet. Confirm a cell position and start a batch to begin.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PANEL 2: GRID CELL SUMMARY -->
+    <div id="panel-summary" class="footer-panel hidden">
+      <div class="table-scroll-container">
+        <table class="survey-table">
+          <thead>
+            <tr>
+              <th>Cell ID</th>
+              <th>Coords (X,Y)</th>
+              <th>Condition</th>
+              <th>Status</th>
+              <th>Packets</th>
+              <th>Median RSSI</th>
+              <th>Median SNR</th>
+              <th>Missing</th>
+              <th>PDR %</th>
+            </tr>
+          </thead>
+          <tbody id="summary-tbody">
+            <!-- Dynamically populated 24 cell summary -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/survey_app.js"></script>
+</body>
+</html>

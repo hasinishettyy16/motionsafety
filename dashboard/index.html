@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Communication-Aware Motion Safety Dashboard</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="dashboard-body">
+
+  <!-- TOP WARNING BANNERS -->
+  <div id="comm-loss-banner" class="alert-banner alert-comm-loss hidden">
+    <div class="banner-content">
+      <span class="banner-icon">⚠️</span>
+      <div class="banner-text">
+        <strong>COMMUNICATION TIMEOUT ALERT (&gt;500ms):</strong>
+        <span id="comm-loss-message">No telemetry packets received within safety threshold. Motors inhibited!</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="estop-banner" class="alert-banner alert-estop hidden">
+    <div class="banner-content">
+      <span class="banner-icon">🛑</span>
+      <div class="banner-text">
+        <strong>EMERGENCY STOP ACTIVE!</strong>
+        <span>All rover motion and motor PWM halted immediately.</span>
+      </div>
+      <button id="btn-resume-estop" class="btn-banner-action">Resume Motion Safety</button>
+    </div>
+  </div>
+
+  <!-- DASHBOARD HEADER -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo-group">
+        <span class="logo-radar">📡</span>
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <h1 class="app-title">COMM-AWARE MOTION SAFETY</h1>
+            <span class="sim-badge-header">SIMULATION</span>
+          </div>
+          <p class="app-subtitle">2WD ESP32 LoRa Telemetry &amp; Safety Supervisor &bull; 120×80 cm Arena (Simulated)</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="header-center">
+      <!-- Live Connection Status Badge (Feature 1) -->
+      <div class="status-indicator-box">
+        <span class="indicator-label">LINK STATUS</span>
+        <div id="status-badge" class="status-badge status-connected">
+          <span class="status-dot"></span> CONNECTED
+        </div>
+      </div>
+      <div class="watchdog-chip">
+        <span class="chip-label">WATCHDOG (500ms)</span>
+        <span id="watchdog-status" class="chip-value">Packet age: 0ms</span>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <!-- Prominent Red Emergency Stop Button (Feature 10) -->
+      <button id="btn-header-estop" class="btn-estop" title="Press SPACEBAR anytime for instant Emergency Stop">
+        <span class="estop-icon">🛑</span>
+        <div class="estop-text">
+          <span class="estop-primary">EMERGENCY STOP</span>
+          <span class="estop-key-hint">SPACEBAR SHORTCUT</span>
+        </div>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN DASHBOARD GRID LAYOUT -->
+  <main class="dashboard-main">
+
+    <!-- LEFT COLUMN: ARENA GRID & NAVIGATION OVERLAY -->
+    <section class="card arena-panel">
+      <div class="card-header">
+        <div class="header-title-row">
+          <div class="card-title-group">
+            <h2 class="card-title">🏟️ Arena Grid Monitor</h2>
+            <span class="card-badge">6 Cols × 4 Rows (120 cm × 80 cm) &bull; SIMULATION</span>
+          </div>
+          <!-- Heatmap Toggle (Feature 6) -->
+          <div class="heatmap-toggle-wrapper">
+            <label class="toggle-switch-label" for="toggle-heatmap">
+              <span class="toggle-text">RF Signal Heatmap</span>
+              <input type="checkbox" id="toggle-heatmap" class="toggle-checkbox">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Grid Interaction Toolbar (Feature 4 & 7) -->
+        <div class="arena-toolbar">
+          <div class="tool-btn-group">
+            <span class="toolbar-label">Click Mode:</span>
+            <button id="tool-mode-target" class="btn-tool active" title="Click grid cell to select Goal Destination">
+              🎯 Set Goal
+            </button>
+            <button id="tool-mode-obstacle" class="btn-tool" title="Click grid cell to toggle Obstacle barrier">
+              🧱 Toggle Obstacle
+            </button>
+          </div>
+          <div class="tool-actions-group">
+            <button id="btn-clear-target" class="btn-tool-secondary" title="Remove goal destination">
+              Clear Goal
+            </button>
+            <button id="btn-preset-obstacle" class="btn-tool-secondary" title="Place physical obstacle between grid cells">
+              Preset Obstacle
+            </button>
+            <button id="btn-clear-obstacles" class="btn-tool-secondary" title="Remove added obstacles while keeping the fixed physical obstacles">
+              Clear Added Obstacles
+            </button>
+            <button id="btn-demo-start" class="btn-tool-secondary demo-button" title="Run guided simulation demo">▶ Guided Demo</button>
+            <button id="btn-demo-stop" class="btn-tool-secondary hidden" title="Stop guided demo">■ Stop Demo</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6x4 Arena Grid Component (Features 2, 3, 4, 6, 7) -->
+      <div class="arena-display-container">
+        <div class="grid-coordinate-ruler-x">
+          <span>Col 0 (0-20cm)</span>
+          <span>Col 1 (20-40cm)</span>
+          <span>Col 2 (40-60cm)</span>
+          <span>Col 3 (60-80cm)</span>
+          <span>Col 4 (80-100cm)</span>
+          <span>Col 5 (100-120cm)</span>
+        </div>
+
+        <div class="grid-content-with-y-axis">
+          <div class="grid-coordinate-ruler-y">
+            <span>Row 0</span>
+            <span>Row 1</span>
+            <span>Row 2</span>
+            <span>Row 3</span>
+          </div>
+          <div id="arena-grid-container" class="grid-board">
+            <!-- Dynamically populated by grid.js -->
+          </div>
+        </div>
+      </div>
+
+      <div id="demo-caption" class="demo-caption hidden"><strong id="demo-stage-title">Guided demonstration</strong><span id="demo-stage-text"></span></div>
+      <!-- Grid Readout & Heatmap Legend Footer -->
+      <div class="arena-footer">
+        <div class="grid-readout">
+          <div class="readout-item">
+            <span class="readout-label">ROBOT POSITION:</span>
+            <span id="rover-coord" class="readout-val text-cyan">(0, 0) @ 90°</span>
+          </div>
+          <div class="readout-item">
+            <span class="readout-label">GOAL CELL:</span>
+            <span id="target-coord" class="readout-val text-violet">Not set</span>
+          </div>
+          <div class="readout-item">
+            <span class="readout-label">PLANNED ROUTE:</span>
+            <span id="route-steps" class="readout-val text-emerald">None (Set goal)</span>
+          </div>
+        </div>
+
+        <!-- Heatmap Legend & Color Scale (Requirements 3, 4, 6, 7) -->
+        <div class="heatmap-legend-card">
+          <div class="legend-header-row">
+            <div class="legend-title-wrapper">
+              <span class="legend-title">📶 RF Signal Heatmap Legend</span>
+              <span class="sim-badge-legend">SIMULATED RF MODEL</span>
+            </div>
+            <span class="legend-subtitle">Unique simulated RSSI value per free cell</span>
+          </div>
+
+          <div class="legend-scale-grid">
+            <div class="legend-scale-item">
+              <span class="legend-chip chip-excel">&gt; -70 dBm</span>
+              <span class="legend-desc">Green (Strong)</span>
+            </div>
+            <div class="legend-scale-item">
+              <span class="legend-chip chip-good">-70 to -80 dBm</span>
+              <span class="legend-desc">Yellow (Good)</span>
+            </div>
+            <div class="legend-scale-item">
+              <span class="legend-chip chip-fair">-80 to -90 dBm</span>
+              <span class="legend-desc">Orange (Fair)</span>
+            </div>
+            <div class="legend-scale-item">
+              <span class="legend-chip chip-poor">&lt; -90 dBm</span>
+              <span class="legend-desc">Red (Weak)</span>
+            </div>
+            <div class="legend-scale-item">
+              <span class="legend-chip chip-unknown">Unknown</span>
+              <span class="legend-desc">Grey (Unmeasured)</span>
+            </div>
+            <div class="legend-scale-item">
+              <span class="legend-chip chip-wall">🧱 WALL</span>
+              <span class="legend-desc">WALL / OBSTACLE</span>
+            </div>
+          </div>
+
+          <div class="legend-disclaimer">
+            <span class="disclaimer-icon">ℹ️</span>
+            <span><strong>SIMULATION NOTICE:</strong> Signal strengths shown on the heatmap are simulated for dashboard testing. Physical obstacle cells at (2,1) and (2,2) represent physical walls and do not simulate specific RF attenuation. Real 433 MHz LoRa measurements will be integrated in subsequent hardware stages.</span>
+          </div>
+        </div>
+      </div>
+      <div class="enhancement-panels">
+        <section class="radio-profile-panel card-inset">
+          <div class="panel-heading"><strong>📍 CELL RADIO FINGERPRINT</strong><span class="sim-badge-legend">SIMULATED</span></div>
+          <div id="cell-profile-readout" class="cell-profile-readout">Click a free arena cell to inspect its simulated radio profile.</div>
+        </section>
+        <section class="route-comparison-panel card-inset">
+          <div class="panel-heading"><strong>🧭 ROUTE COMPARISON</strong><span class="sim-badge-legend">SIMULATION</span></div>
+          <div class="route-metrics-grid">
+            <div><span>Shortest</span><strong id="compare-short-steps">—</strong><small id="compare-short-rssi">Avg RSSI: —</small><small id="compare-short-weak">Weak cells: —</small></div>
+            <div><span>Comm-aware</span><strong id="compare-comm-steps">—</strong><small id="compare-comm-rssi">Avg RSSI: —</small><small id="compare-comm-weak">Weak cells: —</small></div>
+          </div>
+          <div class="route-cost-row">Weighted cost: <strong id="compare-comm-cost">—</strong></div>
+          <p id="route-decision-explanation" class="route-explanation">Set a goal to compare both calculated routes.</p>
+          <div class="route-legend-inline"><span class="route-blue-dot">●</span> Shortest <span class="route-green-dot">●</span> Communication-aware <span class="route-shared-dot">●</span> Shared</div>
+        </section>
+      </div>
+    </section>
+
+
+    <!-- RIGHT COLUMN: TELEMETRY METRICS & CONTROL PANELS -->
+    <div class="dashboard-sidebar">
+
+      <!-- LIVE SIGNAL METRICS (Feature 5) -->
+      <section class="card metrics-card">
+        <div class="card-header-compact">
+          <h3 class="card-title-sm">📊 Live RF &amp; Telemetry Metrics</h3>
+          <span id="metric-seq" class="card-tag">#0</span>
+        </div>
+
+        <div class="metrics-grid">
+          <!-- RSSI Metric -->
+          <div class="metric-box">
+            <div class="metric-top">
+              <span class="metric-label">RSSI (SIGNAL)</span>
+              <span class="metric-unit">dBm</span>
+            </div>
+            <div id="metric-rssi" class="metric-value text-cyan">-62 dBm</div>
+            <div class="metric-bar-bg">
+              <div id="rssi-progress-bar" class="metric-bar-fill" style="width: 80%;"></div>
+            </div>
+            <span class="metric-subtext">Base: 433 MHz LoRa Link</span>
+          </div>
+
+          <!-- SNR Metric -->
+          <div class="metric-box">
+            <div class="metric-top">
+              <span class="metric-label">SNR (NOISE RATIO)</span>
+              <span class="metric-unit">dB</span>
+            </div>
+            <div id="metric-snr" class="metric-value text-emerald">10.5 dB</div>
+            <div class="metric-bar-bg">
+              <div class="metric-bar-fill bg-emerald" style="width: 75%;"></div>
+            </div>
+            <span class="metric-subtext">Noise Margin: High</span>
+          </div>
+
+          <!-- Packet Delivery Rate (PDR) Metric -->
+          <div class="metric-box">
+            <div class="metric-top">
+              <span class="metric-label">PACKET DELIVERY (PDR)</span>
+              <span class="metric-unit">%</span>
+            </div>
+            <div id="metric-pdr" class="metric-value text-violet">100.0%</div>
+            <div class="metric-bar-bg">
+              <div id="pdr-progress-bar" class="metric-bar-fill" style="width: 100%;"></div>
+            </div>
+            <span class="metric-subtext">50-packet sliding window</span>
+          </div>
+
+          <!-- Robot Motion State -->
+          <div class="metric-box">
+            <div class="metric-top">
+              <span class="metric-label">ROBOT SAFETY STATE</span>
+              <span class="metric-unit">STATUS</span>
+            </div>
+            <div class="metric-value-state">
+              <span id="metric-state" class="metric-state-badge state-idle">IDLE</span>
+            </div>
+            <span class="metric-subtext">Watchdog: 500ms Active</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- NAVIGATION & DRIVE CONTROLS (Features 8 & 9) -->
+      <section class="card controls-card">
+        <div class="card-tabs">
+          <button id="tab-manual" class="tab-btn active">🎮 Manual Drive (D-Pad &amp; WASD)</button>
+          <button id="tab-auto" class="tab-btn">🚀 Autonomous Navigation</button>
+        </div>
+
+        <!-- MANUAL TELEOPERATION PANEL (Feature 8) -->
+        <div id="panel-manual" class="tab-panel">
+          <div class="dpad-container">
+            <div class="dpad-grid">
+              <button id="btn-up" class="dpad-btn dpad-up" title="Forward (W / Up Arrow)">
+                <span class="dpad-arrow">▲</span>
+                <span class="key-tag">W</span>
+              </button>
+              <button id="btn-left" class="dpad-btn dpad-left" title="Turn Left (A / Left Arrow)">
+                <span class="dpad-arrow">◀</span>
+                <span class="key-tag">A</span>
+              </button>
+              <button id="btn-stop" class="dpad-btn dpad-stop" title="Stop (X)">
+                <span class="dpad-stop-text">HALT</span>
+                <span class="key-tag">X</span>
+              </button>
+              <button id="btn-right" class="dpad-btn dpad-right" title="Turn Right (D / Right Arrow)">
+                <span class="dpad-arrow">▶</span>
+                <span class="key-tag">D</span>
+              </button>
+              <button id="btn-down" class="dpad-btn dpad-down" title="Reverse (S / Down Arrow)">
+                <span class="dpad-arrow">▼</span>
+                <span class="key-tag">S</span>
+              </button>
+            </div>
+            <div class="dpad-tips">
+              <span>Use on-screen buttons or <strong>W, A, S, D</strong> / Arrow keys</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- AUTONOMOUS MISSION PANEL (Feature 9) -->
+        <div id="panel-auto" class="tab-panel hidden">
+          <div class="auto-nav-panel">
+            <p class="auto-nav-desc">
+              Executes BFS pathfinder route from Rover to Target cell step-by-step, recalculating around obstacles automatically.
+            </p>
+            <div class="auto-nav-status-box">
+              <span class="auto-label">MISSION STATUS:</span>
+              <span id="auto-nav-status-msg" class="auto-msg">Ready (Set target &amp; click Start)</span>
+            </div>
+            <div class="auto-nav-actions">
+              <button id="btn-start-mission" class="btn-primary-action">
+                ▶ Start Autonomous Mission
+              </button>
+              <button id="btn-pause-mission" class="btn-secondary-action hidden">
+                ⏸ Pause Mission
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SIMULATION CONTROL PANEL -->
+      <section class="card sim-card">
+        <div class="card-header-compact">
+          <h3 class="card-title-sm">🧪 Simulation Control Panel</h3>
+          <span class="card-tag tag-sim">TEST RIG</span>
+        </div>
+
+        <div class="sim-controls-grid">
+          <!-- Signal Degradation Slider -->
+          <div class="slider-group">
+            <div class="slider-header">
+              <label for="sim-slider-rssi">Base Signal Strength:</label>
+              <span id="sim-val-rssi" class="slider-val">-60 dBm</span>
+            </div>
+            <input type="range" id="sim-slider-rssi" min="-105" max="-50" value="-60" class="sim-slider">
+            <div class="slider-sublabels">
+              <span>Weak (-105)</span>
+              <span>Strong (-50)</span>
+            </div>
+          </div>
+
+          <!-- Packet Loss Rate Slider -->
+          <div class="slider-group">
+            <div class="slider-header">
+              <label for="sim-slider-loss">Simulated Packet Loss:</label>
+              <span id="sim-val-loss" class="slider-val">0%</span>
+            </div>
+            <input type="range" id="sim-slider-loss" min="0" max="100" value="0" class="sim-slider">
+            <div class="slider-sublabels">
+              <span>0% Loss</span>
+              <span>100% Loss</span>
+            </div>
+          </div>
+
+          <!-- Movement Speed Slider -->
+          <div class="slider-group">
+            <div class="slider-header">
+              <label for="sim-slider-speed">Auto-Nav Step Interval:</label>
+              <span id="sim-val-speed" class="slider-val">700 ms</span>
+            </div>
+            <input type="range" id="sim-slider-speed" min="200" max="1500" step="50" value="700" class="sim-slider">
+            <div class="slider-sublabels">
+              <span>Fast (200ms)</span>
+              <span>Slow (1.5s)</span>
+            </div>
+          </div>
+
+          <!-- Simulation Trigger Buttons -->
+          <div class="sim-actions">
+            <button id="btn-sim-timeout" class="btn-sim-danger" title="Instantly cuts off packets to test the 500ms safety watchdog">
+              ⚡ Simulate Sudden Comm Loss
+            </button>
+            <button id="btn-sim-restore" class="btn-sim-success hidden" title="Restores communication link">
+              🔄 Restore Communication Link
+            </button>
+            <button id="btn-sim-reset-rover" class="btn-sim-neutral" title="Resets rover to cell (0,0)">
+              📍 Reset Rover to (0,0)
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- BOTTOM FULL-WIDTH: PER-CELL TELEMETRY LOGGING TABLE (Feature 12) -->
+  <footer class="dashboard-footer">
+    <section class="card table-card">
+      <div class="card-header">
+        <div class="card-title-group">
+          <h2 class="card-title">📝 Per-Cell Telemetry Data Logger</h2>
+          <span id="log-count-badge" class="card-badge">0 records</span>
+        </div>
+        <div class="table-actions">
+          <button id="btn-export-csv" class="btn-export" title="Export logged records to a CSV file">
+            📥 Export CSV
+          </button>
+          <button id="btn-clear-logs" class="btn-tool-secondary" title="Clear logging table">
+            🗑️ Clear Table
+          </button>
+        </div>
+      </div>
+
+      <div class="table-scroll-container">
+        <table class="telemetry-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Time</th>
+              <th>Cell (X,Y)</th>
+              <th>Heading</th>
+              <th>RSSI</th>
+              <th>SNR</th>
+              <th>PDR</th>
+              <th>Link Status</th>
+              <th>Robot State</th>
+            </tr>
+          </thead>
+          <tbody id="telemetry-tbody">
+            <!-- Dynamically populated rows -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </footer>
+
+  <!-- Scripts -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
